@@ -1,6 +1,6 @@
 from .base import Base
-from .database_config import DatabaseConfig
+from .group import Group
 __all__ = [
     'Base',
-    'DatabaseConfig'
+    'Group'
 ]

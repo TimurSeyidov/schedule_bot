@@ -1,21 +1,26 @@
+import os
 import telebot
 import functools
 from datetime import datetime as dt
 from typing import Dict
 import re
 from pprint import pprint
-from dotenv import dotenv_values
 from datetime import datetime
+from src import Config, DbManager
 from telebot.types import Message, User, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, User
 
 from src.models import Settings, Schedules, Groups
 from src.classes import SubscriptionType
-from src.dao import DatabaseConfig
 
-config = dotenv_values(".env")
-db_config = DatabaseConfig(config)
-print(db_config.database_url)
-bot = telebot.TeleBot(config.get('BOT_API_KEY'))
+config = Config('.env', start_path=os.path.abspath('./'))
+db = DbManager(config)
+bot = telebot.TeleBot(config.bot_api_key)
+db.create_tables()
+session = db.session
+try:
+    Groups.load_fake_data(session)
+except:
+    pass
 
 def log_decorator(func):
     @functools.wraps(func)
@@ -125,7 +130,6 @@ def handle_schedule_list(user: User, message: Message, opt: Dict = None):
                          )
     return handle_schedule(user, message)
 
-
 def handle_settings(user: User, message: Message):
     markup = InlineKeyboardMarkup()
     subscribes = Settings.get_subscribe_by_user_id(user.id)
@@ -172,7 +176,6 @@ def handle_settings_remove(user: User, message: Message, opt: Dict = None):
         bot.send_message(chat_id=message.chat.id, text='Подписка удалена')
     return handle_settings(user, message)
 
-
 def handle_subscribe(user: User, message: Message):
     markup = InlineKeyboardMarkup()
     markup.add(
@@ -191,12 +194,12 @@ def handle_subscribe(user: User, message: Message):
 
 def handle_subscribe_groups(user: User, message: Message):
     groups = dict()
-    for group in Groups.all():
+    for group in Groups.all(session):
         if not group.year in groups:
             groups[group.year] = []
         groups[group.year].append(group)
     markup = InlineKeyboardMarkup()
-    for year in sorted(groups.keys()):
+    for year in groups.keys():
         buttons = []
         for group in groups.get(year, []):
             buttons.append(
@@ -215,9 +218,8 @@ def handle_subscribe_groups(user: User, message: Message):
         parse_mode='Markdown'
     )
 
-
 def handle_subscribe_group(user: User, message: Message, opt: Dict = None):
-    group = Groups.get_by_id(int(opt.get('id', 0)))
+    group = Groups.get_by_id(session, int(opt.get('id', 0)))
     print(group)
     if group:
         # добавляем в базу
@@ -227,7 +229,6 @@ def handle_subscribe_group(user: User, message: Message, opt: Dict = None):
             parse_mode='Markdown'
         )
     return handle_subscribe_groups(user, message)
-
 
 def handle_subscribe_teacher(user: User, message: Message):
     markup = InlineKeyboardMarkup()
